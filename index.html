@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Compiz Demo - Efectos en JS</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; overflow: hidden; font-family: sans-serif; }
+  body { background: #111; color: #eee; }
+  #wallpaper {
+    position: fixed; inset: 0;
+    background: radial-gradient(circle at 30% 20%, #3a6ea5, #1a2a4a 60%, #0a0f1f);
+  }
+  #wallpaper::after {
+    content: "Compiz Web Demo — arrastra ventanas, Ctrl+Alt+←/→ para cubo";
+    position: absolute; bottom: 70px; width: 100%; text-align: center;
+    opacity: .35; font-size: 14px;
+  }
+  #topbar {
+    position: fixed; top: 0; left: 0; right: 0; height: 42px;
+    display: flex; gap: 8px; align-items: center; padding: 0 12px;
+    background: rgba(0,0,0,.55); backdrop-filter: blur(8px);
+    z-index: 1000; border-bottom: 1px solid rgba(255,255,255,.12);
+  }
+  #topbar b { margin-right: 8px; font-size: 14px; }
+  #topbar button {
+    background: #2a2a2a; color: #fff; border: 1px solid #555;
+    border-radius: 6px; padding: 5px 10px; cursor: pointer; font-size: 13px;
+  }
+  #topbar button:hover, #topbar button.active { background: #4a90e2; border-color: #4a90e2; }
+  #viewport {
+    position: fixed; inset: 42px 0 56px 0;
+    perspective: 1400px; overflow: hidden;
+  }
+  #cube {
+    width: 100%; height: 100%;
+    position: relative; transform-style: preserve-3d;
+    transition: transform 0.9s cubic-bezier(.2,.8,.2,1);
+  }
+  .workspace {
+    position: absolute; inset: 0;
+    backface-visibility: hidden;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,.08);
+  }
+  .workspace h2.ws-label {
+    position: absolute; top: 10px; left: 14px; opacity: .5; font-size: 13px; pointer-events: none;
+  }
+  .window {
+    position: absolute; width: 300px; min-height: 160px;
+    background: rgba(30,30,32,.96); border-radius: 10px;
+    box-shadow: 0 18px 50px rgba(0,0,0,.6);
+    border: 1px solid rgba(255,255,255,.15);
+    overflow: hidden; will-change: transform;
+  }
+  .window .titlebar {
+    height: 30px; display: flex; align-items: center; gap: 8px;
+    background: linear-gradient(#4a4a4e, #2e2e31);
+    padding: 0 8px; cursor: grab; user-select: none; font-size: 13px;
+  }
+  .window .titlebar:active { cursor: grabbing; }
+  .window .btns { margin-left: auto; display: flex; gap: 6px; }
+  .window .btns span {
+    width: 14px; height: 14px; border-radius: 50%; display: block; cursor: pointer;
+  }
+  .min { background: #f5bf4f; } .max { background: #5fcf65; } .close { background: #f25f5a; }
+  .window .content { padding: 12px; font-size: 13px; line-height: 1.5; }
+  #dock {
+    position: fixed; bottom: 6px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 10px; padding: 8px 14px;
+    background: rgba(0,0,0,.55); border-radius: 14px;
+    border: 1px solid rgba(255,255,255,.12); z-index: 1000;
+  }
+  .dock-icon {
+    width: 40px; height: 40px; border-radius: 10px;
+    background: linear-gradient(135deg,#5aa,#346);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px; cursor: pointer;
+  }
+  #fx { position: fixed; inset: 0; pointer-events: none; z-index: 2000; }
+  #expoOverlay, #scaleOverlay {
+    position: fixed; inset: 42px 0 56px 0; z-index: 1500;
+    display: none; padding: 20px; gap: 16px;
+    background: rgba(0,0,0,.72); backdrop-filter: blur(4px);
+  }
+  #expoOverlay.show, #scaleOverlay.show { display: grid; grid-template-columns: 1fr 1fr; }
+  .expo-cell, .scale-cell {
+    border: 2px solid rgba(255,255,255,.25); border-radius: 12px;
+    position: relative; overflow: hidden; cursor: pointer; min-height: 200px;
+    background: rgba(60,90,140,.25);
+  }
+  .expo-cell:hover, .scale-cell:hover { border-color: #4a90e2; }
+  .expo-cell span.tag {
+    position: absolute; top: 8px; left: 10px; font-size: 12px; opacity: .8;
+  }
+  .mini-win {
+    position: absolute; background: #333; border: 1px solid #777;
+    border-radius: 6px; font-size: 11px; padding: 4px 6px; white-space: nowrap;
+  }
+  #help {
+    position: fixed; right: 10px; bottom: 66px; z-index: 1000;
+    background: rgba(0,0,0,.65); padding: 10px 12px; border-radius: 10px;
+    font-size: 12px; line-height: 1.7; max-width: 250px;
+  }
+</style>
+</head>
+<body>
+<div id="wallpaper"></div>
+
+<div id="topbar">
+  <b>⬢ Compiz.js</b>
+  <button id="bCubeL">◀ Cubo</button>
+  <button id="bCubeR">Cubo ▶</button>
+  <button id="bExpo">Expo</button>
+  <button id="bScale">Scale</button>
+  <button id="bWobbly" class="active">Wobbly: ON</button>
+  <button id="bFire">🔥 Pintar fuego (Shift)</button>
+  <button id="bLamp">Lámpara</button>
+  <button id="bBurn">Quemar</button>
+</div>
+
+<div id="viewport">
+  <div id="cube">
+    <div class="workspace" data-face="0"><h2 class="ws-label">Workspace 1</h2></div>
+    <div class="workspace" data-face="1"><h2 class="ws-label">Workspace 2</h2></div>
+    <div class="workspace" data-face="2"><h2 class="ws-label">Workspace 3</h2></div>
+    <div class="workspace" data-face="3"><h2 class="ws-label">Workspace 4</h2></div>
+  </div>
+</div>
+
+<div id="expoOverlay"></div>
+<div id="scaleOverlay"></div>
+<canvas id="fx"></canvas>
+
+<div id="dock">
+  <div class="dock-icon" data-restore="all" title="Restaurar">🏠</div>
+  <div class="dock-icon" id="dockIcon1" title="Destino lámpara">📦</div>
+  <div class="dock-icon" id="newWin" title="Nueva ventana">＋</div>
+</div>
+
+<div id="help">
+  <b>Atajos:</b><br>
+  Arrastrar = wobbly<br>
+  Ctrl+Alt+←/→ = cubo<br>
+  E = expo, S = scale<br>
+  Shift+arrastrar = fuego<br>
+  Doble-click fondo = rotar
+</div>
+
+<script src="./compiz.js"></script>
+</body>
+</html>
